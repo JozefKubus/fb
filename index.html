@@ -21,7 +21,7 @@
         .custom-file-upload:hover { background-color: #e4e6eb; }
         
         .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; margin-top: 10px; width: 100%; }
-        select, input[type="text"].search-box { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; width: 100%; max-width: 250px; box-sizing: border-box; }
+        select, input[type="text"].search-box { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; width: 100%; max-width: 250px; box-sizing: border-box; background-color: #fff; }
         
         .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #dc3545; cursor: pointer; background: #fff; padding: 6px 12px; border: 1px solid #f5c2c7; border-radius: 6px; }
         .checkbox-label.dev-mode { color: #0ca678; border-color: #b2f2bb; background: #ebfbee; }
@@ -47,7 +47,6 @@
         .fb-image-container { width: 100%; max-width: 250px; aspect-ratio: 1/1; background-color: #f0f2f5; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; margin: 0 auto; }
         .fb-image-container img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
 
-        /* XML Developer Box */
         .xml-dev-box { display: none; flex: 1; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, Monaco, monospace; font-size: 12px; padding: 12px; overflow-x: auto; max-height: 350px; white-space: pre-wrap; word-break: break-all; border-left: 1px solid #444; }
         
         .dev-mode-active .fb-content-body { justify-content: flex-start; }
@@ -55,7 +54,6 @@
         .dev-mode-active .fb-image-container img { object-fit: cover; }
         .dev-mode-active .xml-dev-box { display: block; }
 
-        /* Farby pre XML zvýrazňovanie */
         .xml-tag { color: #569cd6; }
         .xml-attr-name { color: #9cdcfe; }
         .xml-attr-val { color: #ce9178; }
@@ -100,6 +98,11 @@
                 <select id="categoryFilter">
                     <option value="all">Všetky kategórie</option>
                 </select>
+
+                <!-- Nový zoznam pre filtrovanie zoskupených chýb -->
+                <select id="specificErrorFilter">
+                    <option value="all">Všetky typy chýb</option>
+                </select>
                 
                 <label class="checkbox-label" title="Zobrazí len produkty, ktorým chýbajú dáta alebo majú zlý formát ceny či duplicitné ID">
                     <input type="checkbox" id="errorFilter">
@@ -130,7 +133,7 @@
     </div>
 
     <div class="footer-signature">
-        Dodosystems | Verzia 1.2.2 | Posledná úprava: 07.09.2026
+        Dodosystems | Verzia 1.3.0 | Posledná úprava: 07.09.2026
     </div>
 </div>
 
@@ -225,6 +228,7 @@
 
         document.getElementById('filtersGroup').style.display = 'flex';
         populateCategoryFilter();
+        populateSpecificErrorFilter();
         applyFilter();
     }
 
@@ -248,7 +252,27 @@
         }
     }
 
+    // Naplnenie selektu unikátnymi chybami zistenými vo feede
+    function populateSpecificErrorFilter() {
+        const errorSelect = document.getElementById('specificErrorFilter');
+        const uniqueErrors = new Set();
+
+        allFeedEntries.forEach(entry => {
+            const errs = getEntryErrors(entry);
+            errs.forEach(err => uniqueErrors.add(err));
+        });
+
+        errorSelect.innerHTML = '<option value="all">Všetky typy chýb</option>';
+        Array.from(uniqueErrors).sort().forEach(err => {
+            const option = document.createElement('option');
+            option.value = err;
+            option.textContent = err;
+            errorSelect.appendChild(option);
+        });
+    }
+
     document.getElementById('categoryFilter').addEventListener('change', applyFilter);
+    document.getElementById('specificErrorFilter').addEventListener('change', applyFilter);
     document.getElementById('errorFilter').addEventListener('change', applyFilter);
     document.getElementById('searchFilter').addEventListener('input', applyFilter);
     
@@ -263,6 +287,7 @@
 
     function applyFilter() {
         const selectedCategory = document.getElementById('categoryFilter').value;
+        const selectedSpecificError = document.getElementById('specificErrorFilter').value;
         const onlyErrors = document.getElementById('errorFilter').checked;
         const searchQuery = document.getElementById('searchFilter').value.toLowerCase().trim();
         
@@ -272,6 +297,7 @@
             
             if (!categoryMatch) return false;
 
+            // Fulltext filter
             if (searchQuery) {
                 const title = (getTagVal(entry, 'title') || '').toLowerCase();
                 const desc = (getTagVal(entry, 'description') || '').toLowerCase();
@@ -282,9 +308,16 @@
                 }
             }
 
+            const entryErrors = getEntryErrors(entry);
+
+            // Filter podľa konkrétneho zvoleného typu chyby zo zoznamu
+            if (selectedSpecificError !== 'all') {
+                if (!entryErrors.includes(selectedSpecificError)) return false;
+            }
+
+            // Všeobecný prepínač "Len problémové produkty"
             if (onlyErrors) {
-                const errors = getEntryErrors(entry);
-                if (errors.length === 0) return false;
+                if (entryErrors.length === 0) return false;
             }
 
             return true;
@@ -307,7 +340,6 @@
     }
 
     function formatXml(xml) {
-        // Vyčistenie technických namespace atribútov pre krajšie zobrazenie
         let cleanXml = xml.replace(/xmlns(:\w+)?="[^"]*"/g, '');
         let formatted = '';
         let indent = '';
@@ -319,11 +351,9 @@
         });
         return formatted.substring(1, formatted.length - 3);
     }
-	
-    // Bezpečná funkcia na XML syntax highlighting bez poškodenia tagov
+
     function syntaxHighlightXml(xml) {
         let escaped = escapeHtml(xml);
-        // Zafarbí celé tagy (otváracie aj zatváracie vrátane namespace ako g:id)
         return escaped
             .replace(/(&lt;\/?[\w\-\:]+)([^&]*?)(&gt;)/g, function(match, p1, p2, p3) {
                 let attrHighlighted = p2.replace(/([a-zA-Z\-\:]+)(=)("(?:\\.|[^"\\])*")/g, '<span class="xml-attr-name">$1</span>$2<span class="xml-attr-val">$3</span>');
