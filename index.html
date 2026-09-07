@@ -21,8 +21,8 @@
         .custom-file-upload:hover { background-color: #e4e6eb; }
         
         .filters { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-top: 10px; width: 100%; }
-        select { padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; width: 100%; max-width: 300px; }
-        .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #dc3545; cursor: pointer; background: #fff; padding: 6px 12px; border: 1px solid #f5c2c7; border-radius: 6px; }
+        select, input[type="text"].search-box { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; width: 100%; max-width: 300px; box-sizing: border-box; }
+        .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #dc3545; cursor: pointer; background: #fff; padding: 6px 12px; border: 1px solid #f5c2c7; border-radius: 6px; width: 100%; max-width: 300px; box-sizing: border-box; justify-content: center;}
         .checkbox-label input { cursor: pointer; width: 16px; height: 16px;}
         
         .pagination { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 20px; display: none; }
@@ -53,6 +53,9 @@
         .technical-info { padding: 8px 16px; margin: 0 16px 10px 16px; background: #f8f9fa; border-radius: 6px; font-family: monospace; font-size: 12px; color: #495057; border: 1px dashed #ced4da; }
         .stats { font-size: 13px; color: #65676b; margin-top: 10px; font-weight: bold; }
         .error-text { color: #dc3545; }
+        
+        /* Štýl pre podpis (footer) */
+        .footer-signature { text-align: center; font-size: 13px; color: #65676b; margin-top: 30px; padding: 15px 0; border-top: 1px solid #e4e6eb; }
     </style>
 </head>
 <body>
@@ -76,13 +79,15 @@
             </label>
             
             <div class="filters" id="filtersGroup" style="display: none;">
+                <input type="text" id="searchFilter" class="search-box" placeholder="Hľadať produkt (názov, ID, popis...)">
+                
                 <select id="categoryFilter">
                     <option value="all">Všetky kategórie</option>
                 </select>
                 
                 <label class="checkbox-label" title="Zobrazí len produkty, ktorým chýbajú dáta alebo majú zlý formát ceny či duplicitné ID">
                     <input type="checkbox" id="errorFilter">
-                    Zobraziť len problémové produkty
+                    Len problémové produkty
                 </label>
             </div>
         </div>
@@ -102,6 +107,11 @@
         <span class="page-info" id="pageInfoBottom">Strana 1 z 1</span>
         <button class="btn" id="btnNextBottom" onclick="changePage(1)">Ďalšia</button>
     </div>
+
+    <!-- Podpis / Footer stránky -->
+    <div class="footer-signature">
+        Dodosystems | Verzia 1.0.0 | Posledná úprava: 07.09.2026
+    </div>
 </div>
 
 <script>
@@ -117,7 +127,6 @@
         return el ? el.textContent.trim() : '';
     };
 
-    // Centrálna funkcia pre vyhodnotenie chýb produktu
     function getEntryErrors(entry) {
         let errors = [];
         const gId = getTagVal(entry, 'id');
@@ -219,25 +228,34 @@
         }
     }
 
-    // Pridanie event listenerov pre oba filtre
     document.getElementById('categoryFilter').addEventListener('change', applyFilter);
     document.getElementById('errorFilter').addEventListener('change', applyFilter);
+    document.getElementById('searchFilter').addEventListener('input', applyFilter);
 
     function applyFilter() {
         const selectedCategory = document.getElementById('categoryFilter').value;
         const onlyErrors = document.getElementById('errorFilter').checked;
+        const searchQuery = document.getElementById('searchFilter').value.toLowerCase().trim();
         
         filteredEntries = allFeedEntries.filter(entry => {
-            // 1. Krok: Filter kategórie
             const cat = getTagVal(entry, 'product_type') || getTagVal(entry, 'google_product_category');
             const categoryMatch = (selectedCategory === 'all' || cat === selectedCategory);
             
             if (!categoryMatch) return false;
 
-            // 2. Krok: Filter chýb
+            if (searchQuery) {
+                const title = (getTagVal(entry, 'title') || '').toLowerCase();
+                const desc = (getTagVal(entry, 'description') || '').toLowerCase();
+                const gId = (getTagVal(entry, 'id') || '').toLowerCase();
+                
+                if (!title.includes(searchQuery) && !desc.includes(searchQuery) && !gId.includes(searchQuery)) {
+                    return false;
+                }
+            }
+
             if (onlyErrors) {
                 const errors = getEntryErrors(entry);
-                if (errors.length === 0) return false; // Zahoď, ak nemá chybu
+                if (errors.length === 0) return false;
             }
 
             return true;
@@ -291,7 +309,6 @@
             const salePrice = getTagVal(entry, 'sale_price') || price;
             const category = getTagVal(entry, 'product_type') || getTagVal(entry, 'google_product_category');
 
-            // Získanie chýb z centrálnej funkcie
             const errors = getEntryErrors(entry);
             const domain = link ? new URL(link).hostname.replace('www.', '') : "e-shop.sk";
 
