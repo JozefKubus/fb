@@ -6,7 +6,7 @@
     <title>Inšpekcia Odoo XML Feedu pre FB</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; }
         .header { background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 20px; text-align: center; }
         
         .controls-group { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; align-items: center;}
@@ -20,9 +20,11 @@
         .custom-file-upload { border: 1px solid #ccc; display: inline-block; padding: 8px 16px; cursor: pointer; background-color: #f0f2f5; color: #050505; border-radius: 6px; font-weight: 600; transition: background-color 0.2s;}
         .custom-file-upload:hover { background-color: #e4e6eb; }
         
-        .filters { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-top: 10px; width: 100%; }
-        select, input[type="text"].search-box { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; width: 100%; max-width: 300px; box-sizing: border-box; }
-        .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #dc3545; cursor: pointer; background: #fff; padding: 6px 12px; border: 1px solid #f5c2c7; border-radius: 6px; width: 100%; max-width: 300px; box-sizing: border-box; justify-content: center;}
+        .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; margin-top: 10px; width: 100%; }
+        select, input[type="text"].search-box { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; width: 100%; max-width: 250px; box-sizing: border-box; }
+        
+        .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #dc3545; cursor: pointer; background: #fff; padding: 6px 12px; border: 1px solid #f5c2c7; border-radius: 6px; }
+        .checkbox-label.dev-mode { color: #0ca678; border-color: #b2f2bb; background: #ebfbee; }
         .checkbox-label input { cursor: pointer; width: 16px; height: 16px;}
         
         .pagination { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 20px; display: none; }
@@ -40,8 +42,29 @@
         .fb-author-name { font-weight: 600; color: #050505; font-size: 15px; }
         .fb-sponsored { font-size: 13px; color: #65676b; }
         .fb-post-text { padding: 0 16px 12px; font-size: 15px; color: #050505; line-height: 1.4; }
-        .fb-image-container { width: 100%; aspect-ratio: 1/1; background-color: #f0f2f5; display: flex; align-items: center; justify-content: center; overflow: hidden; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; position: relative; }
-        .fb-image-container img { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Obsahové telo príspevku */
+        .fb-content-body { display: flex; width: 100%; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; background-color: #f0f2f5; justify-content: center; }
+        
+        /* Bežný stav: menší obrázok vycentrovaný */
+        .fb-image-container { width: 100%; max-width: 250px; aspect-ratio: 1/1; background-color: #f0f2f5; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; margin: 0 auto; }
+        .fb-image-container img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+
+        /* XML Developer Box (skrytý v štandardnom režime) */
+        .xml-dev-box { display: none; flex: 1; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, Monaco, monospace; font-size: 12px; padding: 12px; overflow-x: auto; max-height: 350px; white-space: pre-wrap; word-break: break-all; border-left: 1px solid #444; }
+        
+        /* Po zapnutí Developer Mode: roztiahnuť obrázok aj box vedľa seba */
+        .dev-mode-active .fb-content-body { justify-content: flex-start; }
+        .dev-mode-active .fb-image-container { max-width: none; flex: 1; margin: 0; border-right: 1px solid #e4e6eb; }
+        .dev-mode-active .fb-image-container img { object-fit: cover; }
+        .dev-mode-active .xml-dev-box { display: block; }
+
+        /* Farby pre XML zvýrazňovanie */
+        .xml-tag { color: #569cd6; }
+        .xml-attr-name { color: #9cdcfe; }
+        .xml-attr-val { color: #ce9178; }
+        .xml-comment { color: #6a9955; }
+
         .fb-product-info { padding: 12px 16px 0 16px; display: flex; justify-content: space-between; align-items: center; cursor: default; }
         .fb-product-details { display: flex; flex-direction: column; max-width: 75%; }
         .fb-domain { font-size: 13px; color: #65676b; text-transform: uppercase; margin-bottom: 2px;}
@@ -53,8 +76,6 @@
         .technical-info { padding: 8px 16px; margin: 0 16px 10px 16px; background: #f8f9fa; border-radius: 6px; font-family: monospace; font-size: 12px; color: #495057; border: 1px dashed #ced4da; }
         .stats { font-size: 13px; color: #65676b; margin-top: 10px; font-weight: bold; }
         .error-text { color: #dc3545; }
-        
-        /* Štýl pre podpis (footer) */
         .footer-signature { text-align: center; font-size: 13px; color: #65676b; margin-top: 30px; padding: 15px 0; border-top: 1px solid #e4e6eb; }
     </style>
 </head>
@@ -89,6 +110,11 @@
                     <input type="checkbox" id="errorFilter">
                     Len problémové produkty
                 </label>
+
+                <label class="checkbox-label dev-mode" title="Zobrazil formátovaný a zafarbený XML blok pre každý produkt">
+                    <input type="checkbox" id="devModeToggle">
+                    Developer Mode
+                </label>
             </div>
         </div>
         <div id="feedStats" class="stats"></div>
@@ -108,9 +134,8 @@
         <button class="btn" id="btnNextBottom" onclick="changePage(1)">Ďalšia</button>
     </div>
 
-    <!-- Podpis / Footer stránky -->
     <div class="footer-signature">
-        Dodosystems | Verzia 1.0.0 | Posledná úprava: 07.09.2026
+        Dodosystems | Verzia 1.2.1 | Posledná úprava: 07.09.2026
     </div>
 </div>
 
@@ -231,6 +256,15 @@
     document.getElementById('categoryFilter').addEventListener('change', applyFilter);
     document.getElementById('errorFilter').addEventListener('change', applyFilter);
     document.getElementById('searchFilter').addEventListener('input', applyFilter);
+    
+    document.getElementById('devModeToggle').addEventListener('change', function() {
+        const container = document.getElementById('feedContainer');
+        if (this.checked) {
+            container.classList.add('dev-mode-active');
+        } else {
+            container.classList.remove('dev-mode-active');
+        }
+    });
 
     function applyFilter() {
         const selectedCategory = document.getElementById('categoryFilter').value;
@@ -277,6 +311,27 @@
         statsEl.className = isError ? 'stats error-text' : 'stats';
     }
 
+    function formatXml(xml) {
+        let formatted = '';
+        let indent = '';
+        const tab = '    ';
+        xml.split(/>\s*</).forEach(node => {
+            if (node.match(/^\/\w/)) indent = indent.substring(tab.length);
+            formatted += indent + '<' + node + '>\r\n';
+            if (node.match(/^<?\w[^>]*[^\/]$/)) indent += tab;
+        });
+        return formatted.substring(1, formatted.length - 3);
+    }
+
+    function syntaxHighlightXml(xml) {
+        let escaped = escapeHtml(xml);
+        return escaped
+            .replace(/(&lt;[\/\w\-\:]+&gt;)/g, '<span class="xml-tag">$1</span>')
+            .replace(/(&lt;[\/\w\-\:]+)(\s)/g, '<span class="xml-tag">$1</span>$2')
+            .replace(/([a-zA-Z\-\:]+)(=)("(?:\\.|[^"\\])*")/g, '<span class="xml-attr-name">$1</span>$2<span class="xml-attr-val">$3</span>')
+            .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="xml-comment">$1</span>');
+    }
+
     function renderPage() {
         const container = document.getElementById('feedContainer');
         container.innerHTML = ''; 
@@ -287,9 +342,9 @@
         if (currentPage < 1) currentPage = 1;
         if (currentPage > totalPages) currentPage = totalPages;
 
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-        const pageEntries = filteredEntries.slice(startIndex, endIndex);
+        const start = (currentPage - 1) * itemsPerPage;
+        const end = Math.min(start + itemsPerPage, totalItems);
+        const pageEntries = filteredEntries.slice(start, end);
 
         updateStats(`Celkovo vo výbere: ${totalItems} produktov`);
         updatePaginationUI(totalPages);
@@ -311,6 +366,11 @@
 
             const errors = getEntryErrors(entry);
             const domain = link ? new URL(link).hostname.replace('www.', '') : "e-shop.sk";
+            
+            const serializer = new XMLSerializer();
+            const rawXml = serializer.serializeToString(entry);
+            const prettyXml = formatXml(rawXml);
+            const highlightedXml = syntaxHighlightXml(prettyXml);
 
             const postHtml = `
                 <div class="fb-post">
@@ -323,8 +383,11 @@
                     </div>
                     <div class="fb-post-text">${textDesc || title || '<span style="color:red">Chýba text</span>'}</div>
                     
-                    <div class="fb-image-container">
-                        ${imageLink ? `<a href="${link || '#'}" target="_blank" style="width:100%; height:100%; display:block;"><img src="${imageLink}" alt="${title}" loading="lazy" onerror="this.onerror=null; this.src='https://placehold.co/600x600/f0f2f5/65676b?text=Obr%C3%A1zok+nedostupn%C3%BD';"></a>` : `<div style="padding:20px; color:#dc3545; font-weight:bold;">Obrázok chýba v XML</div>`}
+                    <div class="fb-content-body">
+                        <div class="fb-image-container">
+                            ${imageLink ? `<a href="${link || '#'}" target="_blank" style="width:100%; height:100%; display:block;"><img src="${imageLink}" alt="${title}" loading="lazy" onerror="this.onerror=null; this.src='https://placehold.co/600x600/f0f2f5/65676b?text=Obr%C3%A1zok+nedostupn%C3%BD';"></a>` : `<div style="padding:20px; color:#dc3545; font-weight:bold;">Obrázok chýba v XML</div>`}
+                        </div>
+                        <div class="xml-dev-box">${highlightedXml}</div>
                     </div>
                     
                     <div class="fb-product-info">
@@ -348,6 +411,10 @@
             `;
             container.insertAdjacentHTML('beforeend', postHtml);
         });
+    }
+
+    function escapeHtml(string) {
+        return String(string).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
     function updatePaginationUI(totalPages) {
