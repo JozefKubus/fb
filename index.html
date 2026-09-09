@@ -70,6 +70,13 @@
         .stats { font-size: 13px; color: #65676b; margin-top: 10px; font-weight: bold; }
         .error-text { color: #dc3545; }
         .footer-signature { text-align: center; font-size: 13px; color: #65676b; margin-top: 30px; padding: 15px 0; border-top: 1px solid #e4e6eb; }
+		.footer-imprint {
+            margin-top: 50px; padding: 20px; background-color: #fff; border-top: 2px solid #bdc3c7; text-align: center; color: #555; font-size: 14px; border-radius: 0 0 8px 8px; box-shadow: 0 -2px 4px rgba(0,0,0,0.02);
+        }
+        .footer-imprint img { height: 45px; margin-bottom: 15px; vertical-align: middle; }
+        .footer-imprint a { color: #2980b9; text-decoration: none; font-weight: bold; }
+        .footer-imprint a:hover { text-decoration: underline; }
+        .footer-imprint .version-info { font-size: 12px; color: #95a5a6; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -81,7 +88,7 @@
         
         <div class="controls-group">
             <div class="url-group">
-                <input type="text" id="feedUrl" placeholder="https://tvoj-odoo-eshop.sk/feed.xml">
+                <input type="text" id="feedUrl" placeholder="https://tvoj-odoo-eshop.sk/feed.xml" value="https://bezanex.sk/shop/4/content">
                 <button class="btn" onclick="loadFeedFromUrl()">Načítať z URL</button>
             </div>
             
@@ -132,9 +139,18 @@
         <button class="btn" id="btnNextBottom" onclick="changePage(1)">Ďalšia</button>
     </div>
 
-    <div class="footer-signature">
-        Dodosystems | Verzia 1.3.2 | Posledná úprava: 07.09.2026 | pridané proxy origin
-    </div>
+    <div class="footer-imprint">
+    <a href="https://www.dodosys.sk" target="_blank" title="Dodo Systems s.r.o.">
+        <img src="https://www.dodosys.sk/web/image/website/2/logo/Dodo%20Systems%20s.r.o.?unique=d1a601a" alt="Logo Dodo Systems s.r.o.">
+    </a>
+    <p>
+        Vytvoril <strong>Ing. Jozef Kubus</strong> | 
+        <a href="https://www.dodosys.sk" target="_blank">Dodo Systems s.r.o.</a>
+    </p>
+    <p class="version-info">
+        Verzia nástroja: 1.5.0 &bull; Dátum vydania: 9. augusta 2026 &bull; Posledná úprava: Dynamický Referer (Universal)
+    </p>
+</div>
 </div>
 
 <script>
@@ -188,6 +204,7 @@
         }
     });
 
+    // --- UNIVERZÁLNA FUNKCIA S DYNAMICKÝM REFEREROM ---
     async function loadFeedFromUrl() {
         let url = document.getElementById('feedUrl').value.trim();
         if (!url) {
@@ -195,18 +212,67 @@
             return;
         }
 
-        updateStats("Sťahujem XML z URL...");
+        // 1. Kontrola protokolu (ak chýba http/https, pridáme ho)
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+            document.getElementById('feedUrl').value = url;
+        }
+
+        // 2. Dynamické získanie Origin pre Referer
+        let referer = '';
         try {
-            // Použijeme CORS proxy (napr. corsproxy.io), aby prehliadač neblokoval požiadavku
-            const proxyUrl = `https://api.allorigins.win/raw?url=` + encodeURIComponent(url);
+            const urlObj = new URL(url);
+            referer = urlObj.origin + '/'; // Vráti napr. https://bezanex.sk/
+        } catch (e) {
+            console.warn("Nepodarilo sa parsovať URL pre Referer", e);
+            // Ak je URL zlá, fetch to neskoršie odhalí
+        }
+
+        updateStats(`1. Skúšam priame pripojenie (Referer: ${referer})...`);
+        
+        try {
+            // 3. Fetch s dynamickým Refererom
+            const response = await fetch(url, {
+                method: 'GET',
+                mode: 'cors',
+                headers: {
+                    'Referer': referer,
+                    'Accept': 'application/xml, text/xml, */*'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+            }
             
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const text = await response.text();
             processXmlText(text);
+            
         } catch (error) {
-            console.error("Chyba načítavania URL:", error);
-            updateStats(`Chyba: Zlyhalo načítanie z URL kvôli CORS. Stiahnite feed do PC a použite 'Nahrať súbor lokálne'.`, true);
+            console.warn("Priamy fetch zlyhal:", error);
+            
+            // 4. Fallback na proxy
+            updateStats(`Priamy fetch zlyhal (${error.message}). Skúšam proxy server...`);
+            
+            try {
+                const proxyUrl = `https://api.allorigins.win/raw?url=` + encodeURIComponent(url);
+                const proxyResponse = await fetch(proxyUrl);
+                
+                if (!proxyResponse.ok) throw new Error(`Proxy HTTP Error: ${proxyResponse.status}`);
+                
+                const text = await proxyResponse.text();
+                
+                // Kontrola, či sme nedostali HTML chybovku
+                if (text.trim().startsWith('<html') || text.trim().startsWith('<!DOCTYPE')) {
+                     throw new Error("Proxy vrátil HTML chybovú stránku.");
+                }
+
+                processXmlText(text);
+                
+            } catch (proxyError) {
+                console.error("Proxy zlyhala:", proxyError);
+                updateStats(`Chyba: Nepodarilo sa načítať feed. Skontroluj URL v incognito. Ak vidíš 522, oprav firewall. Detail: ${error.message}`, true);
+            }
         }
     }
 
